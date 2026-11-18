@@ -72,7 +72,7 @@ class AnalyticsController extends Controller
     {
         [$from, $to] = $this->period($request);
 
-        return AnalyticsEvent::query()->with(['visitorSession:id,device,browser,session_key', 'prototypeCase:id,slug,title'])
+        return AnalyticsEvent::query()->with(['visitorSession:id,device,browser,session_key,is_demo', 'prototypeCase:id,slug,title'])
             ->whereBetween('analytics_events.created_at', [$from, $to])
             ->when($request->filled('case'), fn ($q) => $q->whereHas('prototypeCase', fn ($case) => $case->where('slug', $request->input('case'))))
             ->when($request->filled('device'), fn ($q) => $q->whereHas('visitorSession', fn ($session) => $session->where('device', $request->input('device'))));
@@ -177,8 +177,11 @@ class AnalyticsController extends Controller
             'date' => $event->created_at->format('Y-m-d H:i:s'), 'event' => $event->event_type,
             'case' => $event->prototypeCase?->title, 'page' => $event->page,
             'device' => $event->visitorSession?->device, 'browser' => $event->visitorSession?->browser,
+            'simulated' => (bool) $event->visitorSession?->is_demo,
             'duration_seconds' => $event->duration_seconds,
         ]);
+        $demoSessions = (clone $events)->whereHas('visitorSession', fn ($query) => $query->where('is_demo', true))
+            ->distinct('visitor_session_id')->count('visitor_session_id');
 
         return response()->json([
             'cards' => [
@@ -189,6 +192,7 @@ class AnalyticsController extends Controller
             ],
             'events' => $counts->toArray(), 'trend' => $trend, 'trend_mode' => $caseFilter ? 'case' : 'site', 'cases' => $caseRows,
             'funnel' => $funnel, 'behavior' => $behaviors, 'recent' => $recent,
+            'demo_sessions' => $demoSessions,
             'case_detail' => $caseRows->firstWhere('slug', $detailCase),
             'case_trend' => $caseDaily,
             'has_data' => $eventTotal > 0,
@@ -214,6 +218,7 @@ class AnalyticsController extends Controller
                 ['Sesiones anónimas activas', (clone $query)->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Visualizaciones de casos', (clone $query)->where('event_type', 'case_view')->count()],
                 ['Interacciones totales', (clone $query)->count()],
+                ['Sesiones simuladas (demostración)', (clone $query)->whereHas('visitorSession', fn ($session) => $session->where('is_demo', true))->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Listas iniciadas', (clone $query)->where('event_type', 'checklist_start')->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Listas completadas', (clone $query)->where('event_type', 'checklist_complete')->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Orientaciones solicitadas', (clone $query)->where('event_type', 'help_click')->count()],
@@ -233,12 +238,13 @@ class AnalyticsController extends Controller
             $filename = 'comparacion-casos-' . now()->format('Ymd-His') . '.csv';
             return response()->streamDownload(function () use ($query, $cases) {
                 $out = fopen('php://output', 'w'); fwrite($out, "\xEF\xBB\xBF");
-                fputcsv($out, ['Caso', 'Sesiones que lo vieron', 'Sesiones que lo seleccionaron', 'Consultas de requisitos', 'Consultas de pasos', 'Listas iniciadas', 'Listas completadas', 'Clics de orientación'], ';');
+                fputcsv($out, ['Caso', 'Sesiones que lo vieron', 'Sesiones demo', 'Sesiones que lo seleccionaron', 'Consultas de requisitos', 'Consultas de pasos', 'Listas iniciadas', 'Listas completadas', 'Clics de orientación'], ';');
                 foreach ($cases as $case) {
                     $q = (clone $query)->where('prototype_case_id', $case->id);
                     fputcsv($out, [
                         $case->title,
                         (clone $q)->where('event_type', 'case_view')->distinct('visitor_session_id')->count('visitor_session_id'),
+                        (clone $q)->where('event_type', 'case_view')->whereHas('visitorSession', fn ($session) => $session->where('is_demo', true))->distinct('visitor_session_id')->count('visitor_session_id'),
                         (clone $q)->where('event_type', 'case_select')->distinct('visitor_session_id')->count('visitor_session_id'),
                         (clone $q)->where('event_type', 'requirements_view')->distinct('visitor_session_id')->count('visitor_session_id'),
                         (clone $q)->where('event_type', 'steps_view')->distinct('visitor_session_id')->count('visitor_session_id'),
@@ -251,14 +257,14 @@ class AnalyticsController extends Controller
             }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
         }
 
-        $events = $this->filtered($request)->orderBy('analytics_events.created_at')->cursor();
+        $events = $this->filtered($request)->with('visitorSession:id,device,browser,session_key,is_demo')->orderBy('analytics_events.created_at')->cursor();
 
         return response()->streamDownload(function () use ($events) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['Fecha y hora', 'Evento', 'Caso', 'Página', 'Dispositivo', 'Navegador', 'Duración (segundos)'], ';');
+            fputcsv($out, ['Fecha y hora', 'Origen', 'Evento', 'Caso', 'Página', 'Dispositivo', 'Navegador', 'Duración (segundos)'], ';');
             foreach ($events as $event) {
-                fputcsv($out, [$event->created_at->format('Y-m-d H:i:s'), $event->event_type, $event->prototypeCase?->title, $event->page, $event->visitorSession?->device, $event->visitorSession?->browser, $event->duration_seconds], ';');
+                fputcsv($out, [$event->created_at->format('Y-m-d H:i:s'), $event->visitorSession?->is_demo ? 'Demo (simulado)' : 'Real', $event->event_type, $event->prototypeCase?->title, $event->page, $event->visitorSession?->device, $event->visitorSession?->browser, $event->duration_seconds], ';');
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);

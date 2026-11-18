@@ -86,7 +86,7 @@
     }
     function drawRecent(data) {
         const rows=data.recent.data||[];
-        $('#eventRows').innerHTML=rows.length?rows.map(row=>`<tr><td>${esc(row.date)}</td><td><span class="badge">${esc(eventNames[row.event]||row.event)}</span></td><td>${esc(row.case||'—')}</td><td>${esc(row.page||'—')}</td><td>${esc(row.device||'—')}</td><td>${esc(row.browser||'—')}</td><td>${row.duration_seconds?fmt(row.duration_seconds)+' s':'—'}</td></tr>`).join(''):'<tr><td colspan="7" class="muted">Aún no hay eventos para estos filtros.</td></tr>';
+        $('#eventRows').innerHTML=rows.length?rows.map(row=>`<tr><td>${esc(row.date)}</td><td><span class="badge" style="${row.simulated?'background:#fff1d6;color:#795b20':''}">${row.simulated?'Demo':'Real'}</span></td><td><span class="badge">${esc(eventNames[row.event]||row.event)}</span></td><td>${esc(row.case||'—')}</td><td>${esc(row.page||'—')}</td><td>${esc(row.device||'—')}</td><td>${esc(row.browser||'—')}</td><td>${row.duration_seconds?fmt(row.duration_seconds)+' s':'—'}</td></tr>`).join(''):'<tr><td colspan="8" class="muted">Aún no hay eventos para estos filtros.</td></tr>';
         $('#pageInfo').textContent=rows.length?`Página ${data.recent.current_page} de ${data.recent.last_page} · ${data.recent.total} eventos`:'Sin registros';
         $('#prevPage').disabled=data.recent.current_page<=1;$('#nextPage').disabled=data.recent.current_page>=data.recent.last_page;
     }
@@ -96,7 +96,7 @@
         const error=$('#errorBox');error.style.display='none';
         if($('#period').value==='custom'&&(!$('#from').value||!$('#to').value)){error.textContent='Selecciona las fechas de inicio y fin.';error.style.display='block';return;}
         const exportParams=params();$('#exportLink').href=window.dashboardConfig.exportUrl+'?'+exportParams.toString();$('#summaryExportLink').href=window.dashboardConfig.summaryExportUrl+'?'+exportParams.toString();$('#casesExportLink').href=window.dashboardConfig.casesExportUrl+'?'+exportParams.toString();
-        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);}
+        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;const demoNotice=$('#demoNotice');demoNotice.hidden=!data.demo_sessions;demoNotice.innerHTML=data.demo_sessions?`<strong>Datos de demostración:</strong> el periodo y los filtros incluyen ${fmt(data.demo_sessions)} sesiones simuladas. Están identificadas como “Demo” y no corresponden a visitantes reales.`:'';setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);}
         catch(e){error.textContent=e.message;error.style.display='block';}
     }
     $('#apply').addEventListener('click',()=>{eventsPage=1;load();});

@@ -18,6 +18,10 @@ Prototipo de orientación para trámites de vivienda en Huancayo, dirigido espec
 
 Las migraciones crean sesiones anónimas, eventos analíticos, casos y ajustes administrativos. No se generan visitas ni datos de analítica ficticios; el dashboard permanece en cero hasta que existan visitas reales.
 
+### Datos de demostración del dashboard
+
+Para una presentación, después de desplegar las migraciones y cargar los cuatro casos, ejecuta `php artisan db:seed --class=DemoAnalyticsSeeder`. Crea 58 sesiones sintéticas sin nombres ni DNI, distribuidas en los últimos 30 días. El dashboard las suma a las métricas del periodo y las identifica como “Demo (simulado)”; las exportaciones también señalan su origen. Ejecutar el seeder de nuevo reemplaza únicamente las sesiones demo existentes. Para retirarlas después de la presentación, usa `php artisan tinker --execute="App\Models\VisitorSession::where('is_demo', true)->delete();"`.
+
 ## Crear el primer administrador
 
 En `.env`, configura `ADMIN_NAME`, `ADMIN_EMAIL` y una `ADMIN_PASSWORD` de al menos 12 caracteres. Después ejecuta:
