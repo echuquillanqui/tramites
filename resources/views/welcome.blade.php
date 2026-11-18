@@ -52,11 +52,11 @@
         const chatPanel=document.getElementById('chatPanel');
         const log=document.getElementById('chatLog');
         const csrf=document.querySelector('meta[name="csrf-token"]').content;
-        const sessionKey=sessionStorage.getItem('guia_analytics_session')||crypto.randomUUID();
-        sessionStorage.setItem('guia_analytics_session',sessionKey);
+        function createUuid(){if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();const bytes=new Uint8Array(16);if(window.crypto&&typeof window.crypto.getRandomValues==='function')window.crypto.getRandomValues(bytes);else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;return Array.from(bytes,(value,index)=>`${[4,6,8,10].includes(index)?'-':''}${value.toString(16).padStart(2,'0')}`).join('')}
+        let sessionKey;try{sessionKey=sessionStorage.getItem('guia_analytics_session')}catch{}sessionKey=sessionKey||createUuid();try{sessionStorage.setItem('guia_analytics_session',sessionKey)}catch{}
         let lastPanelStart=Date.now(), pageStart=Date.now(), exitSent=false, checklistStarted={};
         const analyticsEnabled=@json($trackAnalytics);
-        function track(type,caseKey=null,extra={},duration=null){if(!analyticsEnabled)return;const payload={event_uuid:crypto.randomUUID(),session_key:sessionKey,event_type:type,case:caseKey,page:location.pathname+location.hash,duration_seconds:duration,metadata:extra};fetch('{{ route('analytics.event') }}',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify(payload),keepalive:true}).catch(()=>{});}
+        function track(type,caseKey=null,extra={},duration=null){if(!analyticsEnabled)return;try{const payload={event_uuid:createUuid(),session_key:sessionKey,event_type:type,case:caseKey,page:location.pathname+location.hash,duration_seconds:duration,metadata:extra};fetch('{{ route('analytics.event') }}',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify(payload),keepalive:true}).catch(()=>{});}catch{}}
         track('session_start');track('page_view');
         function sendExit(){if(exitSent)return;exitSent=true;const activeCase=panels[brochureIndex]?.caseKey||null;track('page_exit',activeCase,{},Math.min(1800,Math.round((Date.now()-(activeCase?lastPanelStart:pageStart))/1000)))}
         document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')sendExit();else{exitSent=false;pageStart=Date.now();lastPanelStart=Date.now()}});
