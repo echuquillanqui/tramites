@@ -80,8 +80,13 @@ class AnalyticsController extends Controller
 
     private function period(Request $request): array
     {
-        $preset = $request->input('period', '30d');
+        $preset = $request->input('period', 'since_nov_13');
         $today = today();
+        if ($preset === 'since_nov_13') {
+            $from = $today->copy()->month(11)->day(13)->startOfDay();
+            if ($from->gt($today)) $from->subYear();
+            return [$from, now()];
+        }
         if ($preset === 'today') return [$today->copy()->startOfDay(), now()];
         if ($preset === '7d') return [$today->copy()->subDays(6)->startOfDay(), now()];
         if ($preset === '90d') return [$today->copy()->subDays(89)->startOfDay(), now()];
@@ -100,7 +105,7 @@ class AnalyticsController extends Controller
     public function data(Request $request)
     {
         $request->validate([
-            'period' => ['nullable', 'in:today,7d,30d,90d,this_month,last_month,custom'],
+            'period' => ['nullable', 'in:since_nov_13,today,7d,30d,90d,this_month,last_month,custom'],
             'from' => ['required_if:period,custom', 'nullable', 'date'],
             'to' => ['required_if:period,custom', 'nullable', 'date', 'after_or_equal:from'],
             'case' => ['nullable', 'exists:prototype_cases,slug'],
@@ -203,7 +208,7 @@ class AnalyticsController extends Controller
     public function export(Request $request, string $report = 'events'): StreamedResponse
     {
         $request->validate([
-            'period' => ['nullable', 'in:today,7d,30d,90d,this_month,last_month,custom'],
+            'period' => ['nullable', 'in:since_nov_13,today,7d,30d,90d,this_month,last_month,custom'],
             'from' => ['required_if:period,custom', 'nullable', 'date'],
             'to' => ['required_if:period,custom', 'nullable', 'date', 'after_or_equal:from'],
             'case' => ['nullable', 'exists:prototype_cases,slug'],
