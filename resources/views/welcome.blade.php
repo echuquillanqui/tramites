@@ -21,7 +21,7 @@
 <body>
     <header class="wrap topbar">
         <a class="brand" href="#inicio" style="text-decoration:none"><span class="brandmark">⌂</span><span>TRÁMITES MÁS CLAROS<br><small style="font:600 9px 'DM Sans';letter-spacing:1px;color:#789087">PERSONAS MÁS AUTÓNOMAS · HUANCAYO</small></span></a>
-        <nav class="topnav"><a href="#casos">Casos</a><a href="#pasos">Cómo funciona</a><a href="#orientacion">Orientación</a><button class="btn" type="button" onclick="toggleChat(true)">Comenzar consulta</button></nav>
+        <nav class="topnav"><a href="#casos">Casos</a><a href="#pasos">Cómo funciona</a><a href="#orientacion">Orientación</a><a class="btn light" href="{{ route('login') }}" style="text-decoration:none">Ingresar</a><button class="btn" type="button" onclick="toggleChat(true)">Comenzar consulta</button></nav>
     </header>
     <main>
         <section class="wrap hero" id="inicio">
