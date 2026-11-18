@@ -20,9 +20,15 @@ class DemoAnalyticsSeeder extends Seeder
 
         DB::transaction(function () use ($caseIds) {
             VisitorSession::where('is_demo', true)->delete();
+            $rangeStart = now()->month(11)->day(13)->startOfDay();
+            $rangeEnd = now()->subMinutes(6);
+            if ($rangeEnd->lessThan($rangeStart)) {
+                throw new \RuntimeException('El rango de demostración debe comenzar el 13 de noviembre o antes de la fecha actual.');
+            }
+            $spanSeconds = $rangeStart->diffInSeconds($rangeEnd);
 
-            for ($i = 0; $i < 58; $i++) {
-                $startedAt = now()->subDays(1 + (($i * 11) % 29))->setTime(8 + (($i * 7) % 12), ($i * 13) % 60, 0);
+            for ($i = 0; $i < 59; $i++) {
+                $startedAt = $rangeStart->copy()->addSeconds((int) floor($spanSeconds * $i / 58));
                 $device = $i % 10 < 6 ? 'mobile' : ($i % 10 < 9 ? 'desktop' : 'tablet');
                 $browser = $i % 10 < 6 ? 'Chrome' : ($i % 10 < 8 ? 'Edge' : ($i % 10 === 8 ? 'Safari' : 'Firefox'));
                 $session = VisitorSession::create([
@@ -31,7 +37,7 @@ class DemoAnalyticsSeeder extends Seeder
                     'browser' => $browser,
                     'landing_page' => '/',
                     'started_at' => $startedAt,
-                    'last_seen_at' => $startedAt->copy()->addMinutes(2 + ($i % 9)),
+                    'last_seen_at' => $startedAt->copy()->addMinutes(2 + ($i % 4)),
                     'duration_seconds' => 45 + (($i * 37) % 500),
                     'is_demo' => true,
                 ]);

@@ -20,7 +20,7 @@ Las migraciones crean sesiones anónimas, eventos analíticos, casos y ajustes a
 
 ### Datos de demostración del dashboard
 
-Para una presentación, después de desplegar las migraciones y cargar los cuatro casos, ejecuta `php artisan db:seed --class=DemoAnalyticsSeeder`. Crea 58 sesiones sintéticas sin nombres ni DNI, distribuidas en los últimos 30 días. El dashboard las suma a las métricas del periodo y las identifica como “Demo (simulado)”; las exportaciones también señalan su origen. Ejecutar el seeder de nuevo reemplaza únicamente las sesiones demo existentes. Para retirarlas después de la presentación, usa `php artisan tinker --execute="App\Models\VisitorSession::where('is_demo', true)->delete();"`.
+Para una presentación, después de desplegar las migraciones y cargar los cuatro casos, ejecuta `php artisan db:seed --class=DemoAnalyticsSeeder`. Crea exactamente 59 sesiones sintéticas sin nombres ni DNI, entre el 13 de noviembre del año actual y la fecha de ejecución. El dashboard las suma a las métricas del periodo y las identifica como “Demo (simulado)”; las exportaciones también señalan su origen. Ejecutar el seeder de nuevo reemplaza únicamente las sesiones demo existentes. Para retirarlas después de la presentación, usa `php artisan tinker --execute="App\Models\VisitorSession::where('is_demo', true)->delete();"`.
 
 ## Crear el primer administrador
 
