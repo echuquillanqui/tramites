@@ -4,7 +4,9 @@ namespace Database\Seeders;
 
 use App\Models\AnalyticsEvent;
 use App\Models\PrototypeCase;
+use App\Models\SatisfactionResponse;
 use App\Models\VisitorSession;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -26,6 +28,9 @@ class DemoAnalyticsSeeder extends Seeder
                 throw new \RuntimeException('El rango de demostración debe comenzar el 13 de noviembre o antes de la fecha actual.');
             }
             $spanSeconds = $rangeStart->diffInSeconds($rangeEnd);
+            $surveyStart = Carbon::parse('2026-11-26 00:00:00');
+            $surveyEnd = Carbon::parse('2026-12-02 23:59:59');
+            $surveySpanSeconds = $surveyStart->diffInSeconds($surveyEnd);
 
             for ($i = 0; $i < 59; $i++) {
                 $startedAt = $rangeStart->copy()->addSeconds((int) floor($spanSeconds * $i / 58));
@@ -45,10 +50,6 @@ class DemoAnalyticsSeeder extends Seeder
                 $this->event($session, 'session_start', null, $startedAt);
                 $this->event($session, 'page_view', null, $startedAt->copy()->addSeconds(1));
 
-                if ($i % 12 === 0) {
-                    continue;
-                }
-
                 $case = ['posesion', 'cofopri', 'sunarp', 'herencia'][$i % 4];
                 $caseId = $caseIds[$case];
                 $at = $startedAt->copy()->addSeconds(15 + ($i % 40));
@@ -61,16 +62,25 @@ class DemoAnalyticsSeeder extends Seeder
                 if ($i % 4 !== 0) {
                     $this->event($session, 'steps_view', $caseId, $at->copy()->addSeconds(40));
                 }
+                $requirementsTotal = ['posesion' => 7, 'cofopri' => 6, 'sunarp' => 3, 'herencia' => 3][$case];
+                $this->event($session, 'checklist_start', $caseId, $at->copy()->addSeconds(55));
                 if ($i % 3 !== 0) {
-                    $this->event($session, 'checklist_start', $caseId, $at->copy()->addSeconds(55));
-                    $this->event($session, 'checklist_progress', $caseId, $at->copy()->addSeconds(70), ['checked' => (string) (1 + ($i % 3)), 'total' => '4']);
-                    if ($i % 4 === 1) {
-                        $this->event($session, 'checklist_complete', $caseId, $at->copy()->addSeconds(100));
-                    }
+                    $this->event($session, 'checklist_progress', $caseId, $at->copy()->addSeconds(70), ['checked' => (string) max(1, $requirementsTotal - 1), 'total' => (string) $requirementsTotal]);
                 }
+                $this->event($session, 'checklist_progress', $caseId, $at->copy()->addSeconds(85), ['checked' => (string) $requirementsTotal, 'total' => (string) $requirementsTotal]);
+                $this->event($session, 'checklist_complete', $caseId, $at->copy()->addSeconds(100));
                 if ($i % 7 === 0) {
                     $this->event($session, 'help_click', $caseId, $at->copy()->addSeconds(110));
                 }
+
+                $rating = [5, 4, 4, 5, 3, 4, 5, 2, 4, 5][$i % 10];
+                SatisfactionResponse::create([
+                    'visitor_session_id' => $session->id,
+                    'prototype_case_id' => $caseId,
+                    'rating' => $rating,
+                    'is_demo' => true,
+                    'responded_at' => $surveyStart->copy()->addSeconds((int) floor($surveySpanSeconds * $i / 58)),
+                ]);
             }
         });
     }

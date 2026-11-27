@@ -19,6 +19,7 @@ Route::get('/', function () {
 });
 
 Route::post('/analytics/events', [AnalyticsController::class, 'event'])->middleware('throttle:120,1')->name('analytics.event');
+Route::post('/analytics/satisfaction', [AnalyticsController::class, 'satisfaction'])->middleware('throttle:30,1')->name('analytics.satisfaction');
 
 Auth::routes(['register' => false]);
 

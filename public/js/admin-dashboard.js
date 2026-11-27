@@ -90,13 +90,21 @@
         $('#pageInfo').textContent=rows.length?`Página ${data.recent.current_page} de ${data.recent.last_page} · ${data.recent.total} eventos`:'Sin registros';
         $('#prevPage').disabled=data.recent.current_page<=1;$('#nextPage').disabled=data.recent.current_page>=data.recent.last_page;
     }
+    function drawSatisfaction(data) {
+        $('#surveyAverage').textContent=data.count?Number(data.average).toFixed(1):'—';
+        $('#surveyCount').textContent=`${fmt(data.count)} ${data.count===1?'respuesta':'respuestas'}`;
+        $('#surveySource').textContent=`${fmt(data.count-data.demo_count)} reales · ${fmt(data.demo_count)} demo`;
+        const max=Math.max(1,...data.ratings.map(item=>item.count));
+        $('#surveyBars').innerHTML=data.ratings.map(item=>`<div class="survey-row"><span class="survey-stars-text">${item.rating} ${item.rating===1?'estrella':'estrellas'}</span><div class="survey-bar"><span style="width:${item.count?Math.max(2,item.count/max*100):0}%"></span></div><strong>${fmt(item.count)}</strong></div>`).join('');
+        $('#surveyRows').innerHTML=data.recent.length?data.recent.map(item=>`<tr><td>${esc(item.date)}</td><td><span class="badge" style="${item.simulated?'background:#fff1d6;color:#795b20':''}">${item.simulated?'Demo (simulada)':'Real'}</span></td><td>${esc(item.case||'—')}</td><td><span class="survey-stars-text">${'★'.repeat(item.rating)}${'☆'.repeat(5-item.rating)}</span> <strong>${item.rating}/5</strong></td></tr>`).join(''):'<tr><td colspan="4" class="muted">Todavía no hay respuestas para estos filtros.</td></tr>';
+    }
     function setCase(slug) {caseDetail=slug;$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.case===slug));load();}
     function setCards(cards) {Object.entries(cards).forEach(([key,value])=>{const el=$(`[data-card="${key}"]`);if(el)el.textContent=key==='checklist_rate'?value+'%':key==='avg_seconds'?value+'s':fmt(value);});}
     async function load() {
         const error=$('#errorBox');error.style.display='none';
         if($('#period').value==='custom'&&(!$('#from').value||!$('#to').value)){error.textContent='Selecciona las fechas de inicio y fin.';error.style.display='block';return;}
         const exportParams=params();$('#exportLink').href=window.dashboardConfig.exportUrl+'?'+exportParams.toString();$('#summaryExportLink').href=window.dashboardConfig.summaryExportUrl+'?'+exportParams.toString();$('#casesExportLink').href=window.dashboardConfig.casesExportUrl+'?'+exportParams.toString();
-        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;const demoNotice=$('#demoNotice');demoNotice.hidden=!data.demo_sessions;demoNotice.innerHTML=data.demo_sessions?`<strong>Datos de demostración:</strong> el periodo y los filtros incluyen ${fmt(data.demo_sessions)} sesiones simuladas. Están identificadas como “Demo” y no corresponden a visitantes reales.`:'';setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);}
+        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;const demoNotice=$('#demoNotice');const hasDemo=data.demo_sessions||data.satisfaction.demo_count;demoNotice.hidden=!hasDemo;demoNotice.innerHTML=hasDemo?`<strong>Datos de demostración:</strong> el periodo y los filtros incluyen ${fmt(data.demo_sessions)} sesiones simuladas y ${fmt(data.satisfaction.demo_count)} respuestas simuladas de satisfacción. Se muestran como “Demo” y no corresponden a visitantes reales.`:'';setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);drawSatisfaction(data.satisfaction);}
         catch(e){error.textContent=e.message;error.style.display='block';}
     }
     $('#apply').addEventListener('click',()=>{eventsPage=1;load();});

@@ -16,11 +16,11 @@ Prototipo de orientación para trámites de vivienda en Huancayo, dirigido espec
 4. Ejecuta `php artisan migrate --force` y `php artisan db:seed --class=PrototypeCaseSeeder`.
 5. Inicia la aplicación con `php artisan serve`.
 
-Las migraciones crean sesiones anónimas, eventos analíticos, casos y ajustes administrativos. No se generan visitas ni datos de analítica ficticios; el dashboard permanece en cero hasta que existan visitas reales.
+Las migraciones crean sesiones anónimas, eventos analíticos, respuestas de satisfacción, casos y ajustes administrativos. No se generan visitas ni respuestas ficticias hasta ejecutar explícitamente el seeder de demostración.
 
 ### Datos de demostración del dashboard
 
-Para una presentación, después de desplegar las migraciones y cargar los cuatro casos, ejecuta `php artisan db:seed --class=DemoAnalyticsSeeder`. Crea exactamente 59 sesiones sintéticas sin nombres ni DNI, entre el 13 de noviembre del año actual y la fecha de ejecución. El dashboard las suma a las métricas del periodo y las identifica como “Demo (simulado)”; las exportaciones también señalan su origen. El filtro predeterminado del panel muestra los registros desde el 13 de noviembre. Ejecutar el seeder de nuevo reemplaza únicamente las sesiones demo existentes. Para retirarlas después de la presentación, usa `php artisan tinker --execute="App\Models\VisitorSession::where('is_demo', true)->delete();"`.
+Para una presentación, después de desplegar las migraciones y cargar los cuatro casos, ejecuta `php artisan db:seed --class=DemoAnalyticsSeeder`. Crea exactamente 59 sesiones sintéticas sin nombres ni DNI, entre el 13 de noviembre y la fecha de ejecución, más 59 respuestas sintéticas de satisfacción distribuidas entre el 26 de noviembre y el 2 de diciembre de 2026. Todas se identifican como “Demo (simulado)”. El filtro predeterminado muestra los registros desde el 13 de noviembre hasta el 2 de diciembre durante ese periodo. Ejecutar el seeder de nuevo reemplaza únicamente las sesiones demo existentes. Para retirarlas después de la presentación, usa `php artisan tinker --execute="App\Models\VisitorSession::where('is_demo', true)->delete();"`.
 
 ## Crear el primer administrador
 
@@ -33,6 +33,8 @@ php artisan db:seed --class=AdminUserSeeder
 La contraseña se guarda con el hash nativo de Laravel. No se incluye ninguna credencial por defecto. Borra `ADMIN_PASSWORD` del entorno después de inicializar la cuenta y conserva la contraseña en un gestor seguro. Para dar de alta administradores adicionales, usa un proceso de mantenimiento autenticado o Artisan; no hay formulario público de registro.
 
 ## Eventos y métricas
+
+Al completar todas las casillas de preparación de un caso, el asistente ofrece una pregunta anónima de utilidad con escala de 1 a 5 estrellas. Las respuestas reales y las demo se guardan por separado y el dashboard muestra promedio, distribución, fecha, caso y origen.
 
 `POST /analytics/events` acepta eventos con UUID deduplicable y una sesión aleatoria almacenada en `sessionStorage`. El servidor no recibe nombre, DNI, teléfono, dirección IP para almacenamiento analítico ni texto libre del chatbot. Guarda tipo de evento, caso, ruta, dispositivo, navegador, marca de tiempo, duración aproximada y metadatos limitados. Los agentes automatizados comunes se descartan y el endpoint tiene rate limit.
 

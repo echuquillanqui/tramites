@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AnalyticsEvent;
 use App\Models\PrototypeCase;
+use App\Models\SatisfactionResponse;
 use App\Models\VisitorSession;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -68,6 +69,27 @@ class AnalyticsController extends Controller
         return response()->json(['ok' => true, 'event' => $event->wasRecentlyCreated], $event->wasRecentlyCreated ? 201 : 200);
     }
 
+    public function satisfaction(Request $request)
+    {
+        $data = $request->validate([
+            'session_key' => ['required', 'uuid'],
+            'case' => ['required', 'string', 'exists:prototype_cases,slug'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        $session = VisitorSession::firstOrCreate(['session_key' => $data['session_key']], [
+            'device' => 'other', 'browser' => 'other', 'landing_page' => '/',
+            'started_at' => now(), 'last_seen_at' => now(),
+        ]);
+        $case = PrototypeCase::where('slug', $data['case'])->where('is_active', true)->firstOrFail();
+        $response = SatisfactionResponse::updateOrCreate(
+            ['visitor_session_id' => $session->id, 'prototype_case_id' => $case->id],
+            ['rating' => $data['rating'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
+        );
+
+        return response()->json(['ok' => true], $response->wasRecentlyCreated ? 201 : 200);
+    }
+
     private function filtered(Request $request): Builder
     {
         [$from, $to] = $this->period($request);
@@ -85,7 +107,9 @@ class AnalyticsController extends Controller
         if ($preset === 'since_nov_13') {
             $from = $today->copy()->month(11)->day(13)->startOfDay();
             if ($from->gt($today)) $from->subYear();
-            return [$from, now()];
+            $to = $today->copy()->month(12)->day(2)->endOfDay();
+            if ($today->gt($to)) $to = now();
+            return [$from, $to];
         }
         if ($preset === 'today') return [$today->copy()->startOfDay(), now()];
         if ($preset === '7d') return [$today->copy()->subDays(6)->startOfDay(), now()];
@@ -144,6 +168,24 @@ class AnalyticsController extends Controller
         });
 
         [$from, $to] = $this->period($request);
+        $satisfactionQuery = SatisfactionResponse::query()
+            ->with(['visitorSession:id,is_demo', 'prototypeCase:id,slug,title'])
+            ->whereBetween('responded_at', [$from, $to])
+            ->when($caseFilter, fn ($q) => $q->whereHas('prototypeCase', fn ($case) => $case->where('slug', $caseFilter)))
+            ->when($request->filled('device'), fn ($q) => $q->whereHas('visitorSession', fn ($session) => $session->where('device', $request->input('device'))));
+        $ratingCounts = (clone $satisfactionQuery)->select('rating', DB::raw('COUNT(*) as total'))->groupBy('rating')->pluck('total', 'rating');
+        $satisfaction = [
+            'count' => (clone $satisfactionQuery)->count(),
+            'average' => round((clone $satisfactionQuery)->avg('rating') ?? 0, 1),
+            'demo_count' => (clone $satisfactionQuery)->where('is_demo', true)->count(),
+            'ratings' => collect(range(1, 5))->map(fn ($rating) => ['rating' => $rating, 'count' => (int) ($ratingCounts[$rating] ?? 0)])->values(),
+            'recent' => (clone $satisfactionQuery)->latest('responded_at')->limit(25)->get()->map(fn ($answer) => [
+                'date' => $answer->responded_at->format('Y-m-d H:i:s'),
+                'case' => $answer->prototypeCase?->title,
+                'rating' => $answer->rating,
+                'simulated' => $answer->is_demo,
+            ])->values(),
+        ];
         $trendTypes = $caseFilter ? ['case_view', 'case_select'] : ['page_view', 'session_start'];
         $daily = (clone $events)->whereIn('event_type', $trendTypes)
             ->select(DB::raw('DATE(created_at) as day'), 'event_type', DB::raw('COUNT(*) as total'), DB::raw('COUNT(DISTINCT visitor_session_id) as unique_sessions'))
@@ -198,6 +240,7 @@ class AnalyticsController extends Controller
             'events' => $counts->toArray(), 'trend' => $trend, 'trend_mode' => $caseFilter ? 'case' : 'site', 'cases' => $caseRows,
             'funnel' => $funnel, 'behavior' => $behaviors, 'recent' => $recent,
             'demo_sessions' => $demoSessions,
+            'satisfaction' => $satisfaction,
             'case_detail' => $caseRows->firstWhere('slug', $detailCase),
             'case_trend' => $caseDaily,
             'has_data' => $eventTotal > 0,
@@ -218,12 +261,19 @@ class AnalyticsController extends Controller
         $filename = 'reporte-' . $report . '-' . now()->format('Ymd-His') . '.csv';
         if ($report === 'summary') {
             $query = $this->filtered($request);
+            [$from, $to] = $this->period($request);
+            $surveyQuery = SatisfactionResponse::query()->whereBetween('responded_at', [$from, $to])
+                ->when($request->filled('case'), fn ($q) => $q->whereHas('prototypeCase', fn ($case) => $case->where('slug', $request->input('case'))))
+                ->when($request->filled('device'), fn ($q) => $q->whereHas('visitorSession', fn ($session) => $session->where('device', $request->input('device'))));
             $rows = [
                 ['Visitas a la página', (clone $query)->where('event_type', 'page_view')->count()],
                 ['Sesiones anónimas activas', (clone $query)->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Visualizaciones de casos', (clone $query)->where('event_type', 'case_view')->count()],
                 ['Interacciones totales', (clone $query)->count()],
                 ['Sesiones simuladas (demostración)', (clone $query)->whereHas('visitorSession', fn ($session) => $session->where('is_demo', true))->distinct('visitor_session_id')->count('visitor_session_id')],
+                ['Respuestas de satisfacción', (clone $surveyQuery)->count()],
+                ['Satisfacción promedio (de 5)', round((clone $surveyQuery)->avg('rating') ?? 0, 1)],
+                ['Respuestas demo', (clone $surveyQuery)->where('is_demo', true)->count()],
                 ['Listas iniciadas', (clone $query)->where('event_type', 'checklist_start')->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Listas completadas', (clone $query)->where('event_type', 'checklist_complete')->distinct('visitor_session_id')->count('visitor_session_id')],
                 ['Orientaciones solicitadas', (clone $query)->where('event_type', 'help_click')->count()],
@@ -239,13 +289,16 @@ class AnalyticsController extends Controller
 
         if ($report === 'cases') {
             $query = $this->filtered($request);
+            [$from, $to] = $this->period($request);
             $cases = PrototypeCase::where('is_active', true)->orderBy('sort_order')->get();
             $filename = 'comparacion-casos-' . now()->format('Ymd-His') . '.csv';
-            return response()->streamDownload(function () use ($query, $cases) {
+            return response()->streamDownload(function () use ($query, $cases, $from, $to, $request) {
                 $out = fopen('php://output', 'w'); fwrite($out, "\xEF\xBB\xBF");
-                fputcsv($out, ['Caso', 'Sesiones que lo vieron', 'Sesiones demo', 'Sesiones que lo seleccionaron', 'Consultas de requisitos', 'Consultas de pasos', 'Listas iniciadas', 'Listas completadas', 'Clics de orientación'], ';');
+                fputcsv($out, ['Caso', 'Sesiones que lo vieron', 'Sesiones demo', 'Sesiones que lo seleccionaron', 'Consultas de requisitos', 'Consultas de pasos', 'Listas iniciadas', 'Listas completadas', 'Clics de orientación', 'Respuestas de satisfacción', 'Promedio de utilidad (de 5)'], ';');
                 foreach ($cases as $case) {
                     $q = (clone $query)->where('prototype_case_id', $case->id);
+                    $survey = SatisfactionResponse::query()->where('prototype_case_id', $case->id)->whereBetween('responded_at', [$from, $to])
+                        ->when($request->filled('device'), fn ($answer) => $answer->whereHas('visitorSession', fn ($session) => $session->where('device', $request->input('device'))));
                     fputcsv($out, [
                         $case->title,
                         (clone $q)->where('event_type', 'case_view')->distinct('visitor_session_id')->count('visitor_session_id'),
@@ -256,6 +309,8 @@ class AnalyticsController extends Controller
                         (clone $q)->where('event_type', 'checklist_start')->distinct('visitor_session_id')->count('visitor_session_id'),
                         (clone $q)->where('event_type', 'checklist_complete')->distinct('visitor_session_id')->count('visitor_session_id'),
                         (clone $q)->where('event_type', 'help_click')->count(),
+                        (clone $survey)->count(),
+                        round((clone $survey)->avg('rating') ?? 0, 1),
                     ], ';');
                 }
                 fclose($out);
