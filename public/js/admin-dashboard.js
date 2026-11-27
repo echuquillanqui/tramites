@@ -9,7 +9,8 @@
     const eventNames = {
         page_view: 'Visita', session_start: 'Inicio de sesión', case_view: 'Vista de caso', case_select: 'Selección de caso',
         requirements_view: 'Requisitos', steps_view: 'Pasos', checklist_start: 'Inicio de lista', checklist_progress: 'Avance de lista',
-        checklist_complete: 'Lista completada', help_click: 'Orientación', navigation_click: 'Navegación', page_exit: 'Salida'
+        checklist_complete: 'Lista completada', help_click: 'Orientación', navigation_click: 'Navegación', page_exit: 'Salida',
+        satisfaction_response: 'Encuesta de satisfacción'
     };
 
     function params() {
@@ -86,7 +87,7 @@
     }
     function drawRecent(data) {
         const rows=data.recent.data||[];
-        $('#eventRows').innerHTML=rows.length?rows.map(row=>`<tr><td>${esc(row.date)}</td><td><span class="badge" style="${row.simulated?'background:#fff1d6;color:#795b20':''}">${row.simulated?'Demo':'Real'}</span></td><td><span class="badge">${esc(eventNames[row.event]||row.event)}</span></td><td>${esc(row.case||'—')}</td><td>${esc(row.page||'—')}</td><td>${esc(row.device||'—')}</td><td>${esc(row.browser||'—')}</td><td>${row.duration_seconds?fmt(row.duration_seconds)+' s':'—'}</td></tr>`).join(''):'<tr><td colspan="8" class="muted">Aún no hay eventos para estos filtros.</td></tr>';
+        $('#eventRows').innerHTML=rows.length?rows.map(row=>`<tr><td>${esc(row.date)}</td><td><span class="badge" style="${row.simulated?'background:#fff1d6;color:#795b20':''}">${row.simulated?'Demo':'Real'}</span></td><td><span class="badge">${esc(eventNames[row.event]||row.event)}</span></td><td>${esc(row.case||'—')}</td><td>${row.rating?`<span class="survey-stars-text">${'★'.repeat(Number(row.rating))}</span> ${esc(row.rating)}/5`:'—'}</td><td>${esc(row.page||'—')}</td><td>${esc(row.device||'—')}</td><td>${esc(row.browser||'—')}</td><td>${row.duration_seconds?fmt(row.duration_seconds)+' s':'—'}</td></tr>`).join(''):'<tr><td colspan="9" class="muted">Aún no hay eventos para estos filtros.</td></tr>';
         $('#pageInfo').textContent=rows.length?`Página ${data.recent.current_page} de ${data.recent.last_page} · ${data.recent.total} eventos`:'Sin registros';
         $('#prevPage').disabled=data.recent.current_page<=1;$('#nextPage').disabled=data.recent.current_page>=data.recent.last_page;
     }
@@ -94,8 +95,7 @@
         $('#surveyAverage').textContent=data.count?Number(data.average).toFixed(1):'—';
         $('#surveyCount').textContent=`${fmt(data.count)} ${data.count===1?'respuesta':'respuestas'}`;
         $('#surveySource').textContent=`${fmt(data.count-data.demo_count)} reales · ${fmt(data.demo_count)} demo`;
-        const max=Math.max(1,...data.ratings.map(item=>item.count));
-        $('#surveyBars').innerHTML=data.ratings.map(item=>`<div class="survey-row"><span class="survey-stars-text">${item.rating} ${item.rating===1?'estrella':'estrellas'}</span><div class="survey-bar"><span style="width:${item.count?Math.max(2,item.count/max*100):0}%"></span></div><strong>${fmt(item.count)}</strong></div>`).join('');
+        chart('satisfactionChart','satisfactionBox',{type:'bar',data:{labels:data.ratings.map(item=>`${item.rating} ${item.rating===1?'estrella':'estrellas'}`),datasets:[{label:'Respuestas',data:data.ratings.map(item=>item.count),backgroundColor:['#d88170','#dba66b','#d5c75e','#9bc65d','#26875d'],borderRadius:6,maxBarThickness:58}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:context=>`${fmt(context.raw)} ${context.raw===1?'respuesta':'respuestas'}`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{precision:0,stepSize:1,font:{size:9}},grid:{color:'#edf0ed'}}}},plugins:[{id:'satisfactionCountLabels',afterDatasetsDraw(instance){const ctx=instance.ctx,meta=instance.getDatasetMeta(0);ctx.save();ctx.font='bold 11px DM Sans';ctx.fillStyle='#20352f';ctx.textAlign='center';meta.data.forEach((bar,index)=>ctx.fillText(String(data.ratings[index].count),bar.x,bar.y-6));ctx.restore()}}]},data.count===0);
         $('#surveyRows').innerHTML=data.recent.length?data.recent.map(item=>`<tr><td>${esc(item.date)}</td><td><span class="badge" style="${item.simulated?'background:#fff1d6;color:#795b20':''}">${item.simulated?'Demo (simulada)':'Real'}</span></td><td>${esc(item.first_name||'—')}</td><td>${item.age?fmt(item.age):'—'}</td><td>${esc(item.case||'—')}</td><td><span class="survey-stars-text">${'★'.repeat(item.rating)}${'☆'.repeat(5-item.rating)}</span> <strong>${item.rating}/5</strong></td></tr>`).join(''):'<tr><td colspan="6" class="muted">Todavía no hay respuestas para estos filtros.</td></tr>';
     }
     function setCase(slug) {caseDetail=slug;$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.case===slug));load();}

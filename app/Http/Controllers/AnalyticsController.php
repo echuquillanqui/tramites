@@ -25,7 +25,7 @@ class AnalyticsController extends Controller
         $data = $request->validate([
             'event_uuid' => ['required', 'uuid'],
             'session_key' => ['required', 'uuid'],
-            'event_type' => ['required', 'in:page_view,session_start,case_view,case_select,requirements_view,steps_view,checklist_start,checklist_progress,checklist_complete,help_click,navigation_click,page_exit'],
+            'event_type' => ['required', 'in:page_view,session_start,case_view,case_select,requirements_view,steps_view,checklist_start,checklist_progress,checklist_complete,help_click,navigation_click,page_exit,satisfaction_response'],
             'case' => ['nullable', 'string', 'exists:prototype_cases,slug'],
             'page' => ['nullable', 'string', 'max:255'],
             'duration_seconds' => ['nullable', 'integer', 'min:0', 'max:1800'],
@@ -87,6 +87,10 @@ class AnalyticsController extends Controller
         $response = SatisfactionResponse::updateOrCreate(
             ['visitor_session_id' => $session->id, 'prototype_case_id' => $case->id],
             ['rating' => $data['rating'], 'first_name' => trim($data['first_name']), 'age' => $data['age'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
+        );
+        AnalyticsEvent::updateOrCreate(
+            ['visitor_session_id' => $session->id, 'event_type' => 'satisfaction_response', 'prototype_case_id' => $case->id],
+            ['event_uuid' => (string) \Illuminate\Support\Str::uuid(), 'page' => '/', 'metadata' => ['rating' => (string) $data['rating']], 'created_at' => now()],
         );
 
         return response()->json(['ok' => true], $response->wasRecentlyCreated ? 201 : 200);
@@ -181,7 +185,7 @@ class AnalyticsController extends Controller
             'average' => round((clone $satisfactionQuery)->avg('rating') ?? 0, 1),
             'demo_count' => (clone $satisfactionQuery)->where('is_demo', true)->count(),
             'ratings' => collect(range(1, 5))->map(fn ($rating) => ['rating' => $rating, 'count' => (int) ($ratingCounts[$rating] ?? 0)])->values(),
-            'recent' => (clone $satisfactionQuery)->latest('responded_at')->limit(25)->get()->map(fn ($answer) => [
+            'recent' => (clone $satisfactionQuery)->latest('responded_at')->get()->map(fn ($answer) => [
                 'date' => $answer->responded_at->format('Y-m-d H:i:s'),
                 'case' => $answer->prototypeCase?->title,
                 'rating' => $answer->rating,
@@ -229,6 +233,7 @@ class AnalyticsController extends Controller
             'case' => $event->prototypeCase?->title, 'page' => $event->page,
             'device' => $event->visitorSession?->device, 'browser' => $event->visitorSession?->browser,
             'simulated' => (bool) $event->visitorSession?->is_demo,
+            'rating' => $event->event_type === 'satisfaction_response' ? ($event->metadata['rating'] ?? null) : null,
             'duration_seconds' => $event->duration_seconds,
         ]);
         $demoSessions = (clone $events)->whereHas('visitorSession', fn ($query) => $query->where('is_demo', true))
@@ -326,9 +331,9 @@ class AnalyticsController extends Controller
         return response()->streamDownload(function () use ($events) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['Fecha y hora', 'Origen', 'Evento', 'Caso', 'Página', 'Dispositivo', 'Navegador', 'Duración (segundos)'], ';');
+            fputcsv($out, ['Fecha y hora', 'Origen', 'Evento', 'Caso', 'Calificación', 'Página', 'Dispositivo', 'Navegador', 'Duración (segundos)'], ';');
             foreach ($events as $event) {
-                fputcsv($out, [$event->created_at->format('Y-m-d H:i:s'), $event->visitorSession?->is_demo ? 'Demo (simulado)' : 'Real', $event->event_type, $event->prototypeCase?->title, $event->page, $event->visitorSession?->device, $event->visitorSession?->browser, $event->duration_seconds], ';');
+                fputcsv($out, [$event->created_at->format('Y-m-d H:i:s'), $event->visitorSession?->is_demo ? 'Demo (simulado)' : 'Real', $event->event_type, $event->prototypeCase?->title, data_get($event->metadata, 'rating'), $event->page, $event->visitorSession?->device, $event->visitorSession?->browser, $event->duration_seconds], ';');
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);

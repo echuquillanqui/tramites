@@ -74,6 +74,7 @@ class DemoAnalyticsSeeder extends Seeder
                 }
 
                 $rating = [5, 4, 4, 5, 3, 4, 5, 2, 4, 5][$i % 10];
+                $surveyAt = $surveyStart->copy()->addSeconds((int) floor($surveySpanSeconds * $i / 58));
                 SatisfactionResponse::create([
                     'visitor_session_id' => $session->id,
                     'prototype_case_id' => $caseId,
@@ -81,8 +82,9 @@ class DemoAnalyticsSeeder extends Seeder
                     'first_name' => 'Demo ' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
                     'age' => 60 + (($i * 7) % 31),
                     'is_demo' => true,
-                    'responded_at' => $surveyStart->copy()->addSeconds((int) floor($surveySpanSeconds * $i / 58)),
+                    'responded_at' => $surveyAt,
                 ]);
+                $this->event($session, 'satisfaction_response', $caseId, $surveyAt, ['rating' => (string) $rating]);
             }
         });
     }
