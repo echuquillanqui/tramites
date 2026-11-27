@@ -78,6 +78,8 @@ class DemoAnalyticsSeeder extends Seeder
                     'visitor_session_id' => $session->id,
                     'prototype_case_id' => $caseId,
                     'rating' => $rating,
+                    'first_name' => 'Demo ' . str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+                    'age' => 60 + (($i * 7) % 31),
                     'is_demo' => true,
                     'responded_at' => $surveyStart->copy()->addSeconds((int) floor($surveySpanSeconds * $i / 58)),
                 ]);

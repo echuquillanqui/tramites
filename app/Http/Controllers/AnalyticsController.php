@@ -75,6 +75,8 @@ class AnalyticsController extends Controller
             'session_key' => ['required', 'uuid'],
             'case' => ['required', 'string', 'exists:prototype_cases,slug'],
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'first_name' => ['required', 'string', 'max:60', 'regex:/^[\pL\pM\s\x27-]+$/u'],
+            'age' => ['required', 'integer', 'min:13', 'max:120'],
         ]);
 
         $session = VisitorSession::firstOrCreate(['session_key' => $data['session_key']], [
@@ -84,7 +86,7 @@ class AnalyticsController extends Controller
         $case = PrototypeCase::where('slug', $data['case'])->where('is_active', true)->firstOrFail();
         $response = SatisfactionResponse::updateOrCreate(
             ['visitor_session_id' => $session->id, 'prototype_case_id' => $case->id],
-            ['rating' => $data['rating'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
+            ['rating' => $data['rating'], 'first_name' => trim($data['first_name']), 'age' => $data['age'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
         );
 
         return response()->json(['ok' => true], $response->wasRecentlyCreated ? 201 : 200);
@@ -183,6 +185,8 @@ class AnalyticsController extends Controller
                 'date' => $answer->responded_at->format('Y-m-d H:i:s'),
                 'case' => $answer->prototypeCase?->title,
                 'rating' => $answer->rating,
+                'first_name' => $answer->first_name,
+                'age' => $answer->age,
                 'simulated' => $answer->is_demo,
             ])->values(),
         ];

@@ -34,9 +34,9 @@ La contraseña se guarda con el hash nativo de Laravel. No se incluye ninguna cr
 
 ## Eventos y métricas
 
-Al completar todas las casillas de preparación de un caso, el asistente ofrece una pregunta anónima de utilidad con escala de 1 a 5 estrellas. Las respuestas reales y las demo se guardan por separado y el dashboard muestra promedio, distribución, fecha, caso y origen.
+Al terminar la orientación con el botón “Finalizar y responder encuesta” (o al completar la lista), el asistente solicita solo el nombre de pila, la edad y una calificación de utilidad de 1 a 5 estrellas. No se piden apellidos. Las respuestas reales y las demo se guardan por separado; el dashboard muestra nombre, edad, promedio, distribución, fecha, caso y origen. Las respuestas demo usan etiquetas como “Demo 01” y edades sintéticas.
 
-`POST /analytics/events` acepta eventos con UUID deduplicable y una sesión aleatoria almacenada en `sessionStorage`. El servidor no recibe nombre, DNI, teléfono, dirección IP para almacenamiento analítico ni texto libre del chatbot. Guarda tipo de evento, caso, ruta, dispositivo, navegador, marca de tiempo, duración aproximada y metadatos limitados. Los agentes automatizados comunes se descartan y el endpoint tiene rate limit.
+`POST /analytics/events` acepta eventos con UUID deduplicable y una sesión aleatoria almacenada en `sessionStorage`. Ese endpoint no recibe nombre, DNI, teléfono, dirección IP para almacenamiento analítico ni texto libre del chatbot. Guarda tipo de evento, caso, ruta, dispositivo, navegador, marca de tiempo, duración aproximada y metadatos limitados. `POST /analytics/satisfaction` guarda el nombre de pila y edad que la persona ingresa junto con su calificación. Los agentes automatizados comunes se descartan del endpoint de eventos y ambos endpoints tienen rate limit.
 
 Eventos: `page_view`, `session_start`, `case_view`, `case_select`, `requirements_view`, `steps_view`, `checklist_start`, `checklist_progress`, `checklist_complete`, `help_click`, `navigation_click` y `page_exit`. Una sesión única es una sesión anónima del navegador/pestaña, no una persona verificada. La salida se mide cuando el navegador permite `pagehide` o `visibilitychange`; cierres abruptos pueden no reportar duración.
 

@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class SatisfactionResponse extends Model
 {
-    protected $fillable = ['visitor_session_id', 'prototype_case_id', 'rating', 'is_demo', 'responded_at'];
+    protected $fillable = ['visitor_session_id', 'prototype_case_id', 'rating', 'first_name', 'age', 'is_demo', 'responded_at'];
 
-    protected $casts = ['rating' => 'integer', 'is_demo' => 'boolean', 'responded_at' => 'datetime'];
+    protected $casts = ['rating' => 'integer', 'age' => 'integer', 'is_demo' => 'boolean', 'responded_at' => 'datetime'];
 
     public function visitorSession()
     {
