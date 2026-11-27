@@ -8,6 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('satisfaction_responses')) {
+            if (! Schema::hasIndex('satisfaction_responses', ['visitor_session_id', 'prototype_case_id'], 'unique')) {
+                Schema::table('satisfaction_responses', function (Blueprint $table) {
+                    $table->unique(['visitor_session_id', 'prototype_case_id'], 'sat_resp_session_case_uq');
+                });
+            }
+
+            return;
+        }
+
         Schema::create('satisfaction_responses', function (Blueprint $table) {
             $table->id();
             $table->foreignId('visitor_session_id')->constrained()->cascadeOnDelete();
@@ -16,7 +26,7 @@ return new class extends Migration
             $table->boolean('is_demo')->default(false)->index();
             $table->timestamp('responded_at')->index();
             $table->timestamps();
-            $table->unique(['visitor_session_id', 'prototype_case_id']);
+            $table->unique(['visitor_session_id', 'prototype_case_id'], 'sat_resp_session_case_uq');
         });
     }
 
