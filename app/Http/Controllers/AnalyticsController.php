@@ -111,10 +111,14 @@ class AnalyticsController extends Controller
         $preset = $request->input('period', 'since_nov_13');
         $today = today();
         if ($preset === 'since_nov_13') {
+            // Keep the requested reporting window anchored to November 13 of this year.
             $from = $today->copy()->month(11)->day(13)->startOfDay();
-            if ($from->gt($today)) $from->subYear();
             $to = $today->copy()->month(12)->day(2)->endOfDay();
-            if ($today->gt($to)) $to = now();
+            if ($today->lt($from)) {
+                $to = $today->copy()->endOfDay();
+            } elseif ($today->gt($to)) {
+                $to = now();
+            }
             return [$from, $to];
         }
         if ($preset === 'today') return [$today->copy()->startOfDay(), now()];

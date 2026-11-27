@@ -5,6 +5,7 @@
     let caseDetail = 'posesion';
     let eventsPage = 1;
     let currentPayload = null;
+    let loading = false;
     const colors = ['#26875d', '#9bc65d', '#3f91a0', '#d28b4d', '#9d6ba6', '#d36e82', '#7693bc'];
     const eventNames = {
         page_view: 'Visita', session_start: 'Inicio de sesión', case_view: 'Vista de caso', case_select: 'Selección de caso',
@@ -101,11 +102,14 @@
     function setCase(slug) {caseDetail=slug;$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.case===slug));load();}
     function setCards(cards) {Object.entries(cards).forEach(([key,value])=>{const el=$(`[data-card="${key}"]`);if(el)el.textContent=key==='checklist_rate'?value+'%':key==='avg_seconds'?value+'s':fmt(value);});}
     async function load() {
+        if (loading) return;
+        loading = true;
         const error=$('#errorBox');error.style.display='none';
-        if($('#period').value==='custom'&&(!$('#from').value||!$('#to').value)){error.textContent='Selecciona las fechas de inicio y fin.';error.style.display='block';return;}
+        if($('#period').value==='custom'&&(!$('#from').value||!$('#to').value)){error.textContent='Selecciona las fechas de inicio y fin.';error.style.display='block';loading=false;return;}
         const exportParams=params();$('#exportLink').href=window.dashboardConfig.exportUrl+'?'+exportParams.toString();$('#summaryExportLink').href=window.dashboardConfig.summaryExportUrl+'?'+exportParams.toString();$('#casesExportLink').href=window.dashboardConfig.casesExportUrl+'?'+exportParams.toString();
-        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;const demoNotice=$('#demoNotice');const hasDemo=data.demo_sessions||data.satisfaction.demo_count;demoNotice.hidden=!hasDemo;demoNotice.innerHTML=hasDemo?`<strong>Datos de demostración:</strong> el periodo y los filtros incluyen ${fmt(data.demo_sessions)} sesiones simuladas y ${fmt(data.satisfaction.demo_count)} respuestas simuladas de satisfacción. Se muestran como “Demo” y no corresponden a visitantes reales.`:'';setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);drawSatisfaction(data.satisfaction);}
+        try {const response=await fetch(window.dashboardConfig.dataUrl+'?'+params().toString(),{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(response.status===403?'No tienes permisos para ver este panel.':'No se pudieron cargar las métricas.');const data=await response.json();currentPayload=data;const updated=$('#lastUpdated');if(updated)updated.textContent='Actualizado '+new Intl.DateTimeFormat('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());const demoNotice=$('#demoNotice');const hasDemo=data.demo_sessions||data.satisfaction.demo_count;demoNotice.hidden=!hasDemo;demoNotice.innerHTML=hasDemo?`<strong>Datos de demostración:</strong> el periodo y los filtros incluyen ${fmt(data.demo_sessions)} sesiones simuladas y ${fmt(data.satisfaction.demo_count)} respuestas simuladas de satisfacción. Se muestran como “Demo” y no corresponden a visitantes reales.`:'';setCards(data.cards);drawTrend(data);drawCases(data);drawBehavior(data);drawFunnel(data);drawCaseDetail(data.case_detail);drawCaseTrend(data.case_trend,data.has_data);drawRecent(data);drawSatisfaction(data.satisfaction);}
         catch(e){error.textContent=e.message;error.style.display='block';}
+        finally {loading=false;}
     }
     $('#apply').addEventListener('click',()=>{eventsPage=1;load();});
     $('#period').addEventListener('change',()=>{$$('.custom-date').forEach(x=>x.hidden=$('#period').value!=='custom');});
@@ -114,4 +118,6 @@
     $('#nextPage').addEventListener('click',()=>{eventsPage++;load();});
     $$('.tab').forEach(tab=>tab.addEventListener('click',()=>setCase(tab.dataset.case)));
     load();
+    window.setInterval(()=>{if(!document.hidden)load();},20000);
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
 })();
