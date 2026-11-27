@@ -11,6 +11,7 @@ use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AnalyticsController extends Controller
@@ -79,21 +80,47 @@ class AnalyticsController extends Controller
             'age' => ['required', 'integer', 'min:13', 'max:120'],
         ]);
 
-        $session = VisitorSession::firstOrCreate(['session_key' => $data['session_key']], [
-            'device' => 'other', 'browser' => 'other', 'landing_page' => '/',
-            'started_at' => now(), 'last_seen_at' => now(),
-        ]);
-        $case = PrototypeCase::where('slug', $data['case'])->where('is_active', true)->firstOrFail();
-        $response = SatisfactionResponse::updateOrCreate(
-            ['visitor_session_id' => $session->id, 'prototype_case_id' => $case->id],
-            ['rating' => $data['rating'], 'first_name' => trim($data['first_name']), 'age' => $data['age'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
-        );
-        AnalyticsEvent::updateOrCreate(
-            ['visitor_session_id' => $session->id, 'event_type' => 'satisfaction_response', 'prototype_case_id' => $case->id],
-            ['event_uuid' => (string) \Illuminate\Support\Str::uuid(), 'page' => '/', 'metadata' => ['rating' => (string) $data['rating']], 'created_at' => now()],
-        );
+        try {
+            [$session, $case, $response] = DB::transaction(function () use ($data) {
+                $session = VisitorSession::firstOrCreate(['session_key' => $data['session_key']], [
+                    'device' => 'other', 'browser' => 'other', 'landing_page' => '/',
+                    'started_at' => now(), 'last_seen_at' => now(),
+                ]);
+                $case = PrototypeCase::where('slug', $data['case'])->where('is_active', true)->firstOrFail();
+                $response = SatisfactionResponse::updateOrCreate(
+                    ['visitor_session_id' => $session->id, 'prototype_case_id' => $case->id],
+                    ['rating' => $data['rating'], 'first_name' => trim($data['first_name']), 'age' => $data['age'], 'is_demo' => $session->is_demo, 'responded_at' => now()],
+                );
 
-        return response()->json(['ok' => true], $response->wasRecentlyCreated ? 201 : 200);
+                return [$session, $case, $response];
+            });
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo guardar la respuesta de satisfacción.', [
+                'case' => $data['case'],
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'No se pudo guardar en la base de datos. El administrador debe revisar las migraciones de satisfacción y los registros del servidor.',
+            ], 500);
+        }
+
+        // La respuesta ya quedó guardada; que falle el evento secundario no debe
+        // hacer que el formulario muestre un error ni ocultar la encuesta del panel.
+        try {
+            AnalyticsEvent::updateOrCreate(
+                ['visitor_session_id' => $session->id, 'event_type' => 'satisfaction_response', 'prototype_case_id' => $case->id],
+                ['event_uuid' => (string) \Illuminate\Support\Str::uuid(), 'page' => '/', 'metadata' => ['rating' => (string) $data['rating']], 'created_at' => now()],
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('La respuesta se guardó, pero no se pudo registrar su evento de analítica.', [
+                'response_id' => $response->id,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+
+        return response()->json(['ok' => true, 'response_id' => $response->id], $response->wasRecentlyCreated ? 201 : 200);
     }
 
     private function filtered(Request $request): Builder
